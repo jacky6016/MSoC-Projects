@@ -7,28 +7,30 @@ void edge_detect::main_action()
     int mydata[9];
     for(int j=0;j<height;j++) {
         for(int i=0;i<width;i++) {
-            if(i == 0 || i == (width-1) || j == 0 || j == (height-1) ) {
+            /* Boundary condition */ 
+			if(i == 0 || i == (width-1) || j == 0 || j == (height-1) ) {
                 int a = 0;
                 bus_port->direct_write(&a,0x100000);
             }
+			/* Normal cases */
             else {
                 //=========================== write your code here ============================
                 // Read pixel values from frame_buffer & fill it into mydata[0]~mydata[8]
-
-
-
-
-
+				bus_port->direct_read(&mydata[0], ((j - 1) * 512 + i - 1) * 4);
+				bus_port->direct_read(&mydata[1], ((j - 1) * 512 + i) * 4);
+				bus_port->direct_read(&mydata[2], ((j - 1) * 512 + i + 1) * 4);
+				bus_port->direct_read(&mydata[3], (j * 512 + i - 1) * 4);
+				bus_port->direct_read(&mydata[4], (j * 512 + i) * 4);
+				bus_port->direct_read(&mydata[5], (j * 512 + i + 1) * 4);
+				bus_port->direct_read(&mydata[6], ((j + 1) * 512 + i - 1) * 4);
+				bus_port->direct_read(&mydata[7], ((j + 1) * 512 + i) * 4);
+				bus_port->direct_read(&mydata[8], ((j + 1) * 512 + i + 1) * 4);
 
                 // Edge Detection
                 int edge = edge_filtering(mydata);
 
                 // write to display_buffer
-
-
-
-
-
+				bus_port->direct_write(&edge, 0x100000);
 
                 //=============================================================================
             }

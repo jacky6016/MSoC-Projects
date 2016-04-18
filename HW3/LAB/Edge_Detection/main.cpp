@@ -19,8 +19,13 @@ int sc_main(int, char **)
 
 
     /*-	Net Connection	-*/
-
-
+	iEdge_detect.clock(C1);
+	iEdge_detect.bus_port(iBus);
+	
+	iBus.clock(C1);
+	iBus.arbiter_port(iArbiter);
+	iBus.slave_port(iFrame_buffer);
+	iBus.slave_port(iDisplay_interface);
 
     sc_start(10000, SC_NS);
 

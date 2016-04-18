@@ -65,6 +65,18 @@ inline simple_bus_status frame_buffer::read(int *data
     , unsigned int address)
 {
     // *** complete the behavior of read ***
+	if (address < m_start_address || address > m_end_address)
+		cout << "Reading out-of-bound address in frame buffer\n";
+
+	if (address % 4 == 0)
+	{
+		*data = (int)MEM[address / 4];
+	}
+	else
+	{
+		data = 0;
+		cout << "Misaligned read in frame buffer\n";
+	}
 
     return SIMPLE_BUS_OK;
 }
@@ -73,6 +85,18 @@ inline simple_bus_status frame_buffer::write(int *data
     , unsigned int address)
 {
     // *** complete the behavior of write ***
+	if (address < m_start_address || address > m_end_address)
+		cout << "Writing out-of-bound address in frame buffer\n";
+
+	if (address % 4 == 0)
+	{
+		MEM[address / 4] = (char)*data;
+	}
+	else
+	{
+		data = 0;
+		cout << "Misaligned read in frame buffer\n";
+	}
 
     return SIMPLE_BUS_OK;
 }
