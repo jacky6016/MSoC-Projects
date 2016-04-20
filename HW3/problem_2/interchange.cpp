@@ -1,7 +1,7 @@
 #include <systemc.h>
 #include "interchange.h"
 
-enum operation { WRITE = false, READ = true };
+
 interchange::interchange(sc_module_name name, int size) : sc_module(name)
 {
 	local_mem = new int*[size];
@@ -20,7 +20,6 @@ void interchange::main()
 	// re-write functional behavior to pin-cycle accurate model
 	
 	// copy the memory content in 2D mem-array to local memory
-	cout << "Reading memory content" << endl;
 
 	// Initial port values
 	wait(clk->posedge_event());
@@ -42,7 +41,9 @@ void interchange::main()
 			X->write(i);
 			Y->write(j);
 			// read in the following cycle; LD -> false 
-			wait(clk->posedge_event());
+			// wait multiple cycles for response
+			for (int k = 0; k < 5; k++)
+				wait(clk->posedge_event());
 			LD->write(false);
 			local_mem[i][j] = D->read().to_long();
 		}
@@ -58,7 +59,18 @@ void interchange::main()
 			local_mem[j][i] = tmp;
 		}		
 	}
-
+	/*
+	cout << "Print interchange local memory" << endl;
+	for (int i = size - 1; i >= 0; i--)
+	{
+		cout << "[ ";
+		for (int j = 0; j < size; j++)
+		{
+			printf("%2d ", local_mem[i][j]);
+		}
+		cout << "]" << endl;
+	}
+	*/
 	// write the updated content into 2D mem-array 
 	cout << "Writing memory content" << endl;
 	for (int i = 0; i < size; i++)
@@ -72,7 +84,9 @@ void interchange::main()
 			Y->write(j);
 			D->write(local_mem[i][j]);
 			// LD -> false 
-			wait(clk->posedge_event());
+			// wait multiple cycles for response
+			for (int k = 0; k < 5; k++)
+				wait(clk->posedge_event());
 			LD->write(false);			
 		}
 	}

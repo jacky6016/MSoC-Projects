@@ -1,6 +1,6 @@
+#include <systemc.h>
 #include <time.h>
 #include <iomanip>
-#include <systemc.h>
 #include "memory.h"
 
 memory::memory(sc_module_name name, int size) : sc_channel(name)
@@ -20,6 +20,8 @@ memory::memory(sc_module_name name, int size) : sc_channel(name)
 
 	// print local memory to console
 	printLocalMem(size, "Original memory content");
+
+	SC_THREAD(main);
 }
 
 memory::~memory()
@@ -34,6 +36,7 @@ memory::~memory()
 
 void memory::word_read(unsigned x, unsigned y, int& d)
 {
+	//wait(m_interrupt);
 	if (x < size && y < size)
 		d = local_mem[x][y];
 	else
@@ -61,4 +64,9 @@ void memory::printLocalMem(int size, char *state)
 		}
 		cout << "]" << endl;
 	}
+}
+
+void memory::main(void)
+{
+	wait(m_interrupt);
 }

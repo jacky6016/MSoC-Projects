@@ -26,7 +26,9 @@ void interchange::main()
 	{
 		for (int j = 0; j < size; j++)
 		{
-			mem_port->word_read(i, j, local_mem[i][j]);
+			// issue a notification to slave
+			mem_port->notify();
+			mem_port->word_read(i, j, local_mem[i][j]);			
 		}
 	}
 	// swap procedure
@@ -45,6 +47,8 @@ void interchange::main()
 	{
 		for (int j = 0; j < size; j++)
 		{
+			// issue a notification to slave
+			mem_port->notify();
 			mem_port->word_write(i, j, local_mem[i][j]);
 		}
 	}

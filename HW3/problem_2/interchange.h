@@ -21,7 +21,7 @@ public:
 
 	// Processes
 	void main(void);
-
+	enum operation { WRITE = false, READ = true };
 private:
 	int **local_mem;
 	int size = 8;

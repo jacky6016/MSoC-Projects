@@ -43,8 +43,7 @@ void memory::main()
 		// triggered at negedge clock
 		wait(clk->negedge_event());
 		// Initial and idle output value
-		
-		
+
 		// Read
 		if (LD->read() == true && RW->read() == true) 
 		{

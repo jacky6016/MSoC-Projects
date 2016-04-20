@@ -3,27 +3,40 @@ using std::cout;
 using std::endl;
 
 #include <systemc.h>
-#include "Interchange.h"
-#include "Memory.h"
+#include "interchange.h"
+#include "master_wrapper.h"
+#include "simple_bus.h"
+#include "slave_wrapper.h"
+#include "memory.h"
 
 class top : public sc_module
 {
 public:
 	interchange interchange_inst;
+	master_wrapper ms_wrap_inst;
+	simple_bus simple_bus_inst;
+	slave_wrapper sl_wrap_inst;
 	memory mem_inst;
 	// Declare & initialize all the submodules in a top module
-	top(sc_module_name name)
+	top(sc_module_name name, unsigned int size)
 		: sc_module(name),
-		interchange_inst("Interchange_inst", 8),
-		mem_inst("Memory_inst1", 8)
+		interchange_inst("Interchange", size),
+		ms_wrap_inst("Master wrapper", size),
+		simple_bus_inst("Simple bus"),
+		sl_wrap_inst("Slave wrapper", size, 0, 100000),
+		mem_inst("Memory", size)
 	{
-		interchange_inst.mem_port(mem_inst);
+		interchange_inst.mem_port(ms_wrap_inst);
+		ms_wrap_inst.master_wrapper_out(simple_bus_inst);
+		simple_bus_inst.slave_port(sl_wrap_inst);
+		sl_wrap_inst.slave_wrapper_out(mem_inst);
 	}
 };
 
 
 int sc_main(int argc, char* argv[]) {
-	top top1("Top1");
+	top top1("Top1", 8);
+	SC_HAS_PROCESS(top);
 	sc_start(10, SC_US);
 	return 0;
 }
