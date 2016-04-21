@@ -26,10 +26,10 @@ public:
 	top(sc_module_name name, unsigned int size)
 		: sc_module(name),
 		interchange_inst("Interchange", size),
-		ms_wrap_inst("Master wrapper", size),
-		simple_bus_inst("Simple bus"),
+		ms_wrap_inst("Master_wrapper", size),
+		simple_bus_inst("Simple_bus"),
 		arbiter_inst("Arbiter"),
-		sl_wrap_inst("Slave wrapper", size, 0, 100000),
+		sl_wrap_inst("Slave_wrapper", size, 0, 100000),
 		mem_inst("Memory", size)
 	{
 		interchange_inst.mem_port(ms_wrap_inst);

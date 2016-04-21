@@ -1,5 +1,11 @@
 #include "slave_wrapper.h"
 
+slave_wrapper::slave_wrapper(sc_module_name name_, unsigned int start_addr, unsigned int end_addr, unsigned int nr_wait_states) :
+sc_module(name_), m_start_addr(start_addr), m_end_addr(end_addr), m_nr_wait_states(nr_wait_states), m_wait_count(-1) {
+	SC_METHOD(wait_loop);
+	sensitive << clk.pos();
+};
+
 simple_bus_status slave_wrapper::read(int *data, unsigned int address){
 
 	if (m_wait_count < 0){

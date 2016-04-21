@@ -31,5 +31,4 @@ void master_wrapper::word_write(unsigned x, unsigned y, int d)
 	*/
 	unsigned int addr = 4 * (x * size + y);
 	master_wrapper_out->burst_write(0, &d, addr);
-
 }
