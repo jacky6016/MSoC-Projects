@@ -14,7 +14,7 @@ void master_wrapper::word_read(unsigned x, unsigned y, int& d)
 			, unsigned int length = 1
 			, bool lock = false) = 0;
 	*/
-	unsigned int addr = x * size + y;
+	unsigned int addr = 4 * (x * size + y);
 	master_wrapper_out->burst_read(0, &d, addr);
 	
 }
@@ -29,7 +29,7 @@ void master_wrapper::word_write(unsigned x, unsigned y, int d)
 			, unsigned int length = 1
 			, bool lock = false) = 0;
 	*/
-	unsigned int addr = x * size + y;
+	unsigned int addr = 4 * (x * size + y);
 	master_wrapper_out->burst_write(0, &d, addr);
 
 }

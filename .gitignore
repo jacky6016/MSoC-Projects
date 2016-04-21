@@ -18,7 +18,6 @@
 # documents
 *.doc
 *.docx
-*.pdf
 
 # ignore waveform files
 *.vcd
@@ -29,7 +28,7 @@
 *.filters
 *.sln
 
-
 # ignore compressed files
 *.rar
 *.zip
+*.tar
