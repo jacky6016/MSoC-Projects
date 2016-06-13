@@ -93,15 +93,15 @@ int main(void)
 
 	/****************************** Variables ***********************************/
 	int Status, f, i, j, idy, idx, index_y, index_x;
-	u8  blk[9];
-	u8* bp;
-	u8* fp=OutputFrame;
+	//u8  blk[9];
+	//u8* bp;
+	//u8* fp=OutputFrame;
 	XTime tCur,tEnd;
 
-	u8 select;
-    int num;
-    u8 num_in;
-    int dma_improvement;
+	//u8 select;
+    int DMA_transize;
+    //u8 num_in;
+    //int dma_improvement;
 
     u32 * source, * destination;
     int software_cycles, interrupt_cycles;
@@ -200,15 +200,7 @@ int main(void)
 		xil_printf("SD Polled File System Open failed \r\n");
 		return XST_FAILURE;
 	}
-
-
-
-
 	unsigned int Channel = 0;
-
-
-
-
 
 	// Start the Scu Private Timer device.
 	XScuTimer_Start(TimerInstancePtr);
@@ -224,15 +216,18 @@ int main(void)
 
 //	Xil_ExceptionEnableMask(XIL_EXCEPTION_IRQ);
     test_done = 0;
-    num = 256;
-    int count = 0;
-	destination = (u32 *)BRAM_MEMORY_1;
 
+    DMA_transize = 352*18;//frame_words*sizeof(int);
+    int frame_words = DMA_transize/sizeof(int);
+	int count = 0;
+	destination = (u32 *)BRAM_MEMORY_1;
+	xil_printf("DMA size = %d \r\n", DMA_transize);
 	XTime_GetTime(&tCur);
 	while(test_done==0)
     {
-		if(test_done)
+		if(test_done || count == 100)
 			break;
+			count++;
 
 		// Read a frame from SD card into InputFrame
 		for(f=0;f<1;++f){
@@ -244,32 +239,83 @@ int main(void)
 		}
 
 
-		// DMA in polling mode
-		DmaCmd.BD.SrcAddr = (u32)&InputFrame[0];
-		DmaCmd.BD.DstAddr = (u32)destination;
-		DmaCmd.BD.Length = num*sizeof(u8);
-		
-		print("Setting up interrupt system\r\n");
-		Status = SetupIntrSystem(&Gic, &Dma);
-		if (Status != XST_SUCCESS) {
-			return XST_FAILURE;
+
+		for(j=0; j<1; j++)
+		{
+			// DMA in polling mode
+			DmaCmd.BD.SrcAddr = (u32)&InputFrame[0];
+			*destination = (j==0) ? (u32)BRAM_MEMORY_0 : (
+						  (j==1) ? (u32)BRAM_MEMORY_0 + 0x00002000 : (u32)BRAM_MEMORY_0 + 0x00004000);
+			DmaCmd.BD.DstAddr = *destination;
+
+			xil_printf("srcaadr = %x, dstaddr = %x\r\n",DmaCmd.BD.SrcAddr, DmaCmd.BD.DstAddr);
+			DmaCmd.BD.Length = DMA_transize;
+
+			//print("Setting up interrupt system\r\n");
+			Status = SetupIntrSystem(&Gic, &Dma);
+			if (Status != XST_SUCCESS) {
+				return XST_FAILURE;
+			}
+
+			Xil_ExceptionEnableMask(XIL_EXCEPTION_IRQ);
+			XDmaPs_SetDoneHandler(&Dma,0,DmaDoneHandler,0);
+			// Start DMA
+			Status = XDmaPs_Start(&Dma, Channel, &DmaCmd, 0);	// release DMA buffer as we are done
+
+			// reset timer
+			XScuTimer_RestartTimer(TimerInstancePtr);
+
+			// Wait for DMA to be done
+			while ((Done==0) & (Error==0));
+			if (Error)
+				print("Error occurred during DMA transfer\r\n");
+
+			// Disable the interrupt for the device
+			XScuGic_Disable(&Gic, XPAR_XDMAPS_0_DONE_INTR_0);
+			Error = 0;
+			Done = 0;
+
+			/* Verification */
+			for (i = 0; i < frame_words; i++) {
+				InputFrame32 = InputFrame[i*4+3]<<24 | InputFrame[i*4+2]<<16 | InputFrame[i*4+1]<<8 | InputFrame[i*4];
+				//xil_printf("%d, InputFrame32 : %x %x \r\n", i, InputFrame32,destination[i]);
+				if ( destination[i] != InputFrame32) {
+					xil_printf("Data match failed at = %d, source data = %d, destination data = %d\n\r",i,InputFrame32,destination[i]);
+					print("-- Exiting main() --");
+					return XST_FAILURE;
+				}
+			}
+			xil_printf("Transfered data verified\r\n");
+/*
+			source = (u32 *)DENOISE_BASE_ADDR;
+			u32 slv_data_status;
+			u8 med_blk;
+			slv_data_status = 0x00000001;
+			*(source+0) = slv_data_status;
+
+
+			if(available BRAM)
+*/
 		}
-		
-		xil_printf("Exception mask \r\n");
-		Xil_ExceptionEnableMask(XIL_EXCEPTION_IRQ);
 
-		XDmaPs_SetDoneHandler(&Dma,0,DmaDoneHandler,0);
-		xil_printf("Start DMA \r\n");
-		// Start DMA
-		Status = XDmaPs_Start(&Dma, Channel, &DmaCmd, 0);	// release DMA buffer as we are done
+		// DMA from DDR3 to BRAM
 
-		// reset timer
-		XScuTimer_RestartTimer(TimerInstancePtr);
+		// Send signals to initiate MF
 
-		// Wait for DMA to be done
-		while ((Done==0) & (Error==0));
-		if (Error)
-			print("Error occurred during DMA transfer\r\n");
+		// Write other empty BRAMs and wait for the MF to be finished on the current one (signals)
+
+		// If the part of the image being processed is the last part, read another image from SD card and update the image counter
+
+		// Go back to step one
+
+
+
+
+
+
+
+
+
 
 		CntValue1 = XScuTimer_GetCounterValue(TimerInstancePtr);
 
@@ -279,24 +325,10 @@ int main(void)
 		interrupt_cycles = TIMER_LOAD_VALUE - CntValue1;
 
 		xil_printf("Transfer complete\r\n");
-		// Disable the interrupt for the device
-		XScuGic_Disable(&Gic, XPAR_XDMAPS_0_DONE_INTR_0);
 
 
-		/* Verification */
 
-		for (i = 0; i < num/4; i++) {
-			InputFrame32 = InputFrame[i*4+3]<<24 | InputFrame[i*4+2]<<16 | InputFrame[i*4+1]<<8 | InputFrame[i*4];
-			//xil_printf("InputFrame32 : %x %x \r\n", InputFrame32,destination[i]);
-			if ( destination[i] != InputFrame32) {
-				xil_printf("Data match failed at = %d, source data = %d, destination data = %d\n\r",i,InputFrame32,destination[i]);
-				print("-- Exiting main() --");
-				return XST_FAILURE;
-			}
-		}
-		xil_printf("Transfered data verified\r\n");
-
-		dma_improvement = software_cycles/interrupt_cycles;
+		//dma_improvement = software_cycles/interrupt_cycles;
 		/*xil_printf("Improvement using Interrupt DMA = %2d", dma_improvement);
 		xil_printf("x improvement \r\n");
 		xil_printf("------------------------------------------------------------------- \r\n\r\n");*/
