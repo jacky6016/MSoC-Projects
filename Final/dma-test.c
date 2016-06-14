@@ -22,8 +22,12 @@
 #define XPAR_AXI_BRAM_CTRL_1_BASEADDR 0x42000000
 #define XPAR_AXI_BRAM_CTRL_1_HIGHADDR 0x420FFFFF
 
+#define XPAR_AXI_BRAM_CTRL_2_BASEADDR 0x44000000
+#define XPAR_AXI_BRAM_CTRL_2_HIGHADDR 0x440FFFFF
+
 #define BRAM_MEMORY_0 XPAR_AXI_BRAM_CTRL_0_BASEADDR
 #define BRAM_MEMORY_1 XPAR_AXI_BRAM_CTRL_1_BASEADDR
+#define BRAM_MEMORY_2 XPAR_AXI_BRAM_CTRL_2_BASEADDR
 #define DENOISE_BASE_ADDR 0x43C00000
 //#define SD_MEMORY 0xE0100000
 //#define SD_MEMORY 0x00000000
@@ -48,7 +52,7 @@ void DmaFaultHandler(unsigned int Channel, XDmaPs_Cmd *DmaCmd, void *CallbackRef
 int SetupIntrSystem(XScuGic *GicPtr, XDmaPs *DmaPtr);
 // Interactive functions
 u8 menu(void);
-
+u8 mf(u8* blk);
 /************************** Global Variables *****************************/
 static FIL fil;		/* File object */
 static FATFS fatfs;
@@ -74,32 +78,21 @@ u8 InputFrame [352*288] __attribute__ ((aligned(32)));
 u8 OutputFrame [352*288*100] __attribute__ ((aligned(32)));
 #endif
 
-/*****************************************************************************/
-/**
-*
-* Main function to call the SD example.
-*
-* @param	None
-*
-* @return	XST_SUCCESS if successful, otherwise XST_FAILURE.
-*
-* @note		None
-*
-******************************************************************************/
+
 int main(void)
 {
-	//  NOTE! The cache should not be enable!!!
+	// The cache should not be enabled
 	Xil_DCacheDisable();
 
 	/****************************** Variables ***********************************/
 	int Status, f, i, j, idy, idx, index_y, index_x;
-	//u8  blk[9];
-	//u8* bp;
-	//u8* fp=OutputFrame;
+	u8  blk[9];
+	u8* bp;
+	u8* fp=OutputFrame;
 	XTime tCur,tEnd;
 
 	//u8 select;
-    int DMA_transize;
+    int dma_bytes;
     //u8 num_in;
     //int dma_improvement;
 
@@ -107,6 +100,7 @@ int main(void)
     int software_cycles, interrupt_cycles;
     int test_done = 0;
     u32 InputFrame32;
+	u32 mf_done;
 
 	/*****************************************************************************/
 
@@ -216,41 +210,49 @@ int main(void)
 
 //	Xil_ExceptionEnableMask(XIL_EXCEPTION_IRQ);
     test_done = 0;
-
-    DMA_transize = 352*18;//frame_words*sizeof(int);
-    int frame_words = DMA_transize/sizeof(int);
+	int dma_rows = 18;
+    dma_bytes = 352 * dma_rows;//
+    int dma_words = dma_bytes/sizeof(int);
 	int count = 0;
-	destination = (u32 *)BRAM_MEMORY_1;
-	xil_printf("DMA size = %d \r\n", DMA_transize);
+	destination = (u32 *)BRAM_MEMORY_2;
+	xil_printf("DMA size = %d \r\n", dma_bytes);
 	XTime_GetTime(&tCur);
+
+
+
 	while(test_done==0)
     {
 		if(test_done || count == 100)
 			break;
-			count++;
+			
 
 		// Read a frame from SD card into InputFrame
-		for(f=0;f<1;++f){
-			Status=FfsSdPolledRead();
-			if (Status != XST_SUCCESS) {
-				xil_printf("SD Polled File System Read failed \r\n");
-				return XST_FAILURE;
-			}
+		Status=FfsSdPolledRead();
+		if (Status != XST_SUCCESS) {
+			xil_printf("SD Polled File System Read failed \r\n");
+			return XST_FAILURE;
 		}
 
-
-
-		for(j=0; j<1; j++)
-		{
+		// DMA from DDR3 to BRAM
+		// Write data to BRAM 16 times to complete a frame
+//		for(j=0; j<16; j++)
+//		{
+			
+		for (k=0;k<286;k=k+2) {
+	        if (k==0 || k==285) {
+	        	num = 264;
+	        } else {
+	        	num = 264;
+	        }
 			// DMA in polling mode
-			DmaCmd.BD.SrcAddr = (u32)&InputFrame[0];
-			*destination = (j==0) ? (u32)BRAM_MEMORY_0 : (
-						  (j==1) ? (u32)BRAM_MEMORY_0 + 0x00002000 : (u32)BRAM_MEMORY_0 + 0x00004000);
-			DmaCmd.BD.DstAddr = *destination;
+			u8 * IF = InputFrame + dma_bytes * j;
+			DmaCmd.BD.SrcAddr = (u32 *)(IF);
+			destination = (u32 *)(BRAM_MEMORY_1);
+			DmaCmd.BD.DstAddr = destination;
 
-			xil_printf("srcaadr = %x, dstaddr = %x\r\n",DmaCmd.BD.SrcAddr, DmaCmd.BD.DstAddr);
-			DmaCmd.BD.Length = DMA_transize;
-
+			//xil_printf("src_aadr = %x, dst_addr = %x\r\n",DmaCmd.BD.SrcAddr, DmaCmd.BD.DstAddr);
+			//DmaCmd.BD.Length = dma_bytes;
+			DmaCmd.BD.Length = num * sizeof(int);
 			//print("Setting up interrupt system\r\n");
 			Status = SetupIntrSystem(&Gic, &Dma);
 			if (Status != XST_SUCCESS) {
@@ -259,11 +261,9 @@ int main(void)
 
 			Xil_ExceptionEnableMask(XIL_EXCEPTION_IRQ);
 			XDmaPs_SetDoneHandler(&Dma,0,DmaDoneHandler,0);
+		
 			// Start DMA
 			Status = XDmaPs_Start(&Dma, Channel, &DmaCmd, 0);	// release DMA buffer as we are done
-
-			// reset timer
-			XScuTimer_RestartTimer(TimerInstancePtr);
 
 			// Wait for DMA to be done
 			while ((Done==0) & (Error==0));
@@ -275,46 +275,63 @@ int main(void)
 			Error = 0;
 			Done = 0;
 
-			/* Verification */
-			for (i = 0; i < frame_words; i++) {
-				InputFrame32 = InputFrame[i*4+3]<<24 | InputFrame[i*4+2]<<16 | InputFrame[i*4+1]<<8 | InputFrame[i*4];
+			xil_printf("%x, %x \r\n", DmaCmd.BD.SrcAddr,IF);
+			// Verification
+			/* for (i = 0; i < dma_words; i++) {
+				InputFrame32 = IF[i*4+3]<<24 | IF[i*4+2]<<16 | IF[i*4+1]<<8 | IF[i*4];
 				//xil_printf("%d, InputFrame32 : %x %x \r\n", i, InputFrame32,destination[i]);
 				if ( destination[i] != InputFrame32) {
-					xil_printf("Data match failed at = %d, source data = %d, destination data = %d\n\r",i,InputFrame32,destination[i]);
+					xil_printf("Data match failed at = %d, source data = %x, destination data = %x\n\r",i,InputFrame32,destination[i]);
 					print("-- Exiting main() --");
 					return XST_FAILURE;
 				}
-			}
-			xil_printf("Transfered data verified\r\n");
-/*
+			} */
+			//xil_printf("Transfered data verified\r\n");
+
+			// Send signals to initiate MF
+
 			source = (u32 *)DENOISE_BASE_ADDR;
-			u32 slv_data_status;
+			u32 mf_done;
+			u32 bram_write_done;
 			u8 med_blk;
-			slv_data_status = 0x00000001;
-			*(source+0) = slv_data_status;
+			mf_done = 0x00000001;
+			*source = mf_done;
 
+			
+			int cpu_ack = 0;
+			/************* Software emulated median filter(wrapper included) **************/
+			while(!cpu_ack)
+			{
+				for(i=0;i<3;++i) {
+					for(j=0;j<352;++j) {
+						bp=blk;
+						for(idy=-1;idy<=1;++idy) {
+							for(idx=-1;idx<=1;++idx) {
+								index_y=(i+idy <0)?0:(i+idy>287)?287:i+idy;
+								index_x=(j+idx <0)?0:(j+idx>351)?351:j+idx;
+								wordIdx = (index_y*352+index_x) >> 2;
+								byteSel = (index_y*352+index_x) % 4;
 
-			if(available BRAM)
-*/
+								*bp++ = destination[wordIdx] >> byteSel*8;
+
+								//xil_printf("wordIdx = %d \r\n",wordIdx);
+							}
+						}
+							
+						///	xil_printf("%x %x %x %x %x %x %x %x %x \r\n",blk[0],blk[1],blk[2],blk[3],blk[4],blk[5],blk[6],blk[7],blk[8]);
+						//	sourcw = (u32 *) DENOIAE_BASE_ADDR;
+						//*(source[0]) = 0x1;
+						 //med_done = source[1];
+						// while (!source[1])
+						// *fp++ = source[2];
+
+						*fp++=mf(blk);
+					}
+				}
+			}
+			
+			// Write other empty BRAMs and wait for the MF to be finished on the current one (signals) => not implemented
 		}
-
-		// DMA from DDR3 to BRAM
-
-		// Send signals to initiate MF
-
-		// Write other empty BRAMs and wait for the MF to be finished on the current one (signals)
-
-		// If the part of the image being processed is the last part, read another image from SD card and update the image counter
-
-		// Go back to step one
-
-
-
-
-
-
-
-
 
 
 		CntValue1 = XScuTimer_GetCounterValue(TimerInstancePtr);
@@ -324,39 +341,9 @@ int main(void)
 		xil_printf("Moving data through DMA in Interrupt mode took %d clock cycles\r\n", TIMER_LOAD_VALUE-CntValue1);
 		interrupt_cycles = TIMER_LOAD_VALUE - CntValue1;
 
-		xil_printf("Transfer complete\r\n");
-
-
-
-		//dma_improvement = software_cycles/interrupt_cycles;
-		/*xil_printf("Improvement using Interrupt DMA = %2d", dma_improvement);
-		xil_printf("x improvement \r\n");
-		xil_printf("------------------------------------------------------------------- \r\n\r\n");*/
-		Error = 0;
-		Done = 0;
-		source = (u32 *)DENOISE_BASE_ADDR;
-  	    u32 slv_data_status;
-  	    u8 med_blk;
-  	    slv_data_status = 0x00000001;
-  	    *(source+0) = slv_data_status;
-  	    //xil_printf("source data = %x\n\r",source[0]);
-  	    //test_done = 1;
-  	    //xil_printf("source data = %x\n\r",source);
-  	    /*if(count >= 88*72/4)
-  	    {
-  	    	//xil_printf("source data = %x\n\r",source);
-  	    	test_done = 1;
-  	    }
-  	    else
-  	    {
-  	    	source += 1;
-			destination += 1;
-			count += 1;
-			test_done = 0;
-			//xil_printf("count = %d\n\r",count);
-			//xil_printf("source data = %x\n\r",source);
-			//xil_printf("des data = %x\n\r",destination);
-  	    }*/
+		xil_printf("Transfer complete\r\n");	
+		
+		count++;
     }
 
 	XTime_GetTime(&tEnd);
@@ -566,3 +553,23 @@ u8 menu(void)
 	return(byte);
 
 }
+
+u8 mf(u8* blk){
+	// 3x3 median filter by bubble sort
+	int i, j , Temp,sp;
+    for (i=8; i>0; i--)
+       {
+        sp=1;
+       for (j =0; j <=i; j++)
+          if (blk[j] > blk[j+1])
+             {
+               Temp = blk[j];
+               blk[j] = blk[j+1];
+               blk[j+1] = Temp;
+               sp=0;
+             }
+             if (sp==1) break;
+       }
+///    xil_printf("%x \r\n",blk[4]);
+	return blk[4];
+};
