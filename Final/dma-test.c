@@ -401,7 +401,7 @@ int main(void)
 
 	for(f=0; f<100;f++)
 	{
-		xil_printf("Reading frame %d \r\n", f);
+		//xil_printf("Reading frame %d \r\n", f);
 		InputFrame = InputFrameAll + 352*288*f;
 		for (k=0;k<288;k=k+22) {
 			row_pointer = (k == 0) ? 0 : 1;
@@ -434,7 +434,7 @@ int main(void)
 			// Disable the interrupt for the device
 			XScuGic_Disable(&Gic, XPAR_XDMAPS_0_DONE_INTR_0);
 
-			
+
 			for(i=row_pointer;i<22;++i) {
 				for(j=0;j<352;++j){
 					bp=blk;
@@ -462,8 +462,8 @@ int main(void)
 			   }
 			}
 		}
-		
-		// CPU version 
+
+		// CPU version
 		/* for(i=0;i<288;++i)
 			for(j=0;j<352;++j){
 				bp=blk;
