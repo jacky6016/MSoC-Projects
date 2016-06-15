@@ -399,9 +399,33 @@ int main(void)
 		return XST_FAILURE;
 	}
 
+	
+	int wordIdx_table[22*352*3*3];
+	u8 byteSel_table[22*352*3*3];
+	
+	
+	// build addr table
+	int ctr = 0;
+	for(i=0;i<22;++i) {
+		for(j=0;j<352;++j){
+			for(idy=-1;idy<=1;++idy) {
+				for(idx=-1;idx<=1;++idx){
+					index_y=(i+idy <0)?0:(i+idy>287)?287:i+idy;
+					index_x=(j+idx <0)?0:(j+idx>351)?351:j+idx;
+					//wordIdx = (index_y*352+index_x) >> 2;
+					//byteSel = (index_y*352+index_x) % 4;
+					wordIdx_table[ctr] = (index_y*352+index_x) >> 2;
+					byteSel_table[ctr++] = (index_y*352+index_x) % 4;
+					//*bp++ = destination[wordIdx] >> byteSel*8;
+				//	xil_printf("wordIdx = %d \r\n",wordIdx);
+				}
+			}
+		}
+	}
+	
 	for(f=0; f<100;f++)
 	{
-		//xil_printf("Reading frame %d \r\n", f);
+		xil_printf("Reading frame %d \r\n", f);
 		InputFrame = InputFrameAll + 352*288*f;
 		for (k=0;k<288;k=k+22) {
 			row_pointer = (k == 0) ? 0 : 1;
@@ -434,20 +458,22 @@ int main(void)
 			// Disable the interrupt for the device
 			XScuGic_Disable(&Gic, XPAR_XDMAPS_0_DONE_INTR_0);
 
-
+			
 			for(i=row_pointer;i<22;++i) {
+				ctr = (row_pointer==0)? 0: 352*3*3;
 				for(j=0;j<352;++j){
 					bp=blk;
 					for(idy=-1;idy<=1;++idy) {
 						for(idx=-1;idx<=1;++idx){
-							index_y=(i+idy <0)?0:(i+idy>287)?287:i+idy;
-							index_x=(j+idx <0)?0:(j+idx>351)?351:j+idx;
-							wordIdx = (index_y*352+index_x) >> 2;
-							byteSel = (index_y*352+index_x) % 4;
-							*bp++ = destination[wordIdx] >> byteSel*8;
+							*bp++ = destination[wordIdx_table[ctr]] >> byteSel_table[ctr]*8;
+							ctr++;
 						//	xil_printf("wordIdx = %d \r\n",wordIdx);
 						}
 					}
+					
+					
+					
+					
 					slv_data_status2 = 0x00000000;
 					*(source+2) = slv_data_status2;
 					slv_data_status0 = slv_data_status0 | blk[0] << blk_fld0 | blk[1] << blk_fld1 | blk[2] << blk_fld2;
@@ -462,8 +488,8 @@ int main(void)
 			   }
 			}
 		}
-
-		// CPU version
+		
+		// CPU version 
 		/* for(i=0;i<288;++i)
 			for(j=0;j<352;++j){
 				bp=blk;
